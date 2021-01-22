@@ -76,7 +76,7 @@ int main()
     }
 
     Synthesizer synth;
-    auto synthFunction = std::bind(&Synthesizer::sine_from_keystrokes, &synth, std::placeholders::_1);
+    auto synthFunction = std::bind(&Synthesizer::sawtooth_from_keystrokes, &synth, std::placeholders::_1);
     audioRenderer.start(synthFunction);
 
     cout << "Press some keys to play. SPACE to quit.\n";
