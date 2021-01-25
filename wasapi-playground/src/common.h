@@ -30,6 +30,14 @@ struct AudioDevices {
     std::vector<AudioDeviceInfo> output_devices;
 };
 
+struct AudioRecording {
+    unsigned short channels;
+    unsigned int samplesPerSecond;
+    unsigned long durationMs;
+
+    std::vector<float> data;
+};
+
 struct FrameInfo {
     double time;
     long ordinalNumber;
