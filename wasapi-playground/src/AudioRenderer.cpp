@@ -1,8 +1,7 @@
 #include "AudioRenderer.h"
-#include "common.h"
 
-AudioRenderer::AudioRenderer(IMMDevice* device_pointer) :
-	device(device_pointer),
+AudioRenderer::AudioRenderer(IMMDevice* devicePointer) :
+	device(devicePointer),
 	audioClient(nullptr),
 	renderClient(nullptr),
 	waveFormat(nullptr),
@@ -22,7 +21,7 @@ AudioRenderer::~AudioRenderer()
 
 std::optional<HRESULT> AudioRenderer::initialize(unsigned int bufferTimeSizeMs)
 {
-	HRESULT hr = device->Activate(__uuidof(IAudioClient), CLSCTX_INPROC_SERVER, NULL, reinterpret_cast<void**>(&audioClient));
+	HRESULT hr = device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, NULL, reinterpret_cast<void**>(&audioClient));
 	if (FAILED(hr))
 	{
 		printf("Unable to activate audio client: %x.\n", hr);
@@ -53,7 +52,7 @@ std::optional<HRESULT> AudioRenderer::initialize(unsigned int bufferTimeSizeMs)
 		{
 			CoTaskMemFree(waveFormat);
 			waveFormat = workingFormat;
-			printf("Replace waveformat with another working format");
+			printf("Replace waveformat with another working format\n");
 		}
 		else {
 			printf("Mix Format not supported: %x.\n", hr);
@@ -89,7 +88,7 @@ std::optional<HRESULT> AudioRenderer::initialize(unsigned int bufferTimeSizeMs)
 		return hr;
 	}
 
-	hr = audioClient->GetService(IID_PPV_ARGS(&renderClient));
+	hr = audioClient->GetService(__uuidof(IAudioRenderClient), reinterpret_cast<void**>(&renderClient));
 	if (FAILED(hr))
 	{
 		printf("Unable to get new render client: %x.\n", hr);
@@ -97,7 +96,7 @@ std::optional<HRESULT> AudioRenderer::initialize(unsigned int bufferTimeSizeMs)
 	}
 
 	//*
-	printf("**** Details of device\n");
+	printf("**** Details of RENDERING device\n");
 	printf("\t- latency: %d\n", (long)latency);
 	printf("\t- bufferSize (frames): %d\n", bufferSize);
 	printf("\t- bufferSize (bytes): %d\n", bufferSize * waveFormat->nBlockAlign * waveFormat->nChannels);
@@ -113,91 +112,90 @@ std::optional<HRESULT> AudioRenderer::initialize(unsigned int bufferTimeSizeMs)
 	return std::nullopt;
 }
 
-void AudioRenderer::start(std::function<double(double)> renderCallback)
+void AudioRenderer::start(std::function<double(FrameInfo)> renderCallback)
 {
 	if (running || renderClient == nullptr)
 		return;
 
 	userCallback = renderCallback;
-	BYTE* pData;
+	
+	// Write a packet of silence before starting the audio stream, to avoid glitches
+	write_to_buffer([](UINT32 _, BYTE* __, DWORD* flags) {
+		*flags = AUDCLNT_BUFFERFLAGS_SILENT;
+	});
 
-	// Grab the entire buffer for the initial fill operation.
-	HRESULT hr = renderClient->GetBuffer(bufferSize, &pData);
-	if (FAILED(hr))
+	auto result = audioClient->Start();
+	if (FAILED(result))
 	{
-		printf("Unable to get buffer: %x.\n", hr);
-		return;
-	}
-
-	hr = renderClient->ReleaseBuffer(bufferSize, AUDCLNT_BUFFERFLAGS_SILENT);
-	if (FAILED(hr))
-	{
-		printf("Unable to release buffer: %x.\n", hr);
-		return;
-	}
-
-	hr = audioClient->Start();
-	if (FAILED(hr))
-	{
-		printf("FAILED TO START AUDIOCLIENT: %x.\n", hr);
+		printf("FAILED TO START AUDIOCLIENT: %x.\n", result);
 		return;
 	}
 
 	running = true;
 
 	renderThread = std::thread([&]() {
-		BYTE* buffData;
-		UINT32 numFramesPadding;
-		HRESULT result;
-		double time = 0;
+		double globalTime = 0;
+		double timeIncrement = 1.0 / (double)waveFormat->nSamplesPerSec;
+		long frameCount = 0;
 		auto interval = (long)latency / 2;
 
 		while (running) {
 			Sleep(interval);
 
-			result = audioClient->GetCurrentPadding(&numFramesPadding);
-			if (FAILED(result))
-			{
-				printf("RENDER-THREAD Failed to GetCurrentPadding(): %x.\n", result);
-				break;
-			}
+			write_to_buffer([&](UINT32 framesAvailable, BYTE* buffer, DWORD* _) {
+				auto bufferLengthInBytes = framesAvailable * waveFormat->nBlockAlign;
+				float* dataBuffer = reinterpret_cast<float*>(buffer);
 
-			auto framesAvailable = bufferSize - numFramesPadding;
+				for (size_t i = 0; i < bufferLengthInBytes / sizeof(float); i += waveFormat->nChannels)
+				{
+					float sample = (float)userCallback({ globalTime, frameCount });
+					for (size_t j = 0; j < waveFormat->nChannels; j++)
+					{
+						dataBuffer[i + j] = sample;
+					}
 
-			result = renderClient->GetBuffer(framesAvailable, &buffData);
-			if (FAILED(result))
-			{
-				printf("RENDER-THREAD Failed to GetBuffer(): %x.\n", result);
-				break;
-			}
-
-			fill_buffer(buffData, framesAvailable, &time);
-			
-			hr = renderClient->ReleaseBuffer(framesAvailable, 0);
-			if (FAILED(result))
-			{
-				printf("RENDER-THREAD Failed to ReleaseBuffer(): %x.\n", result);
-				break;
-			}
+					globalTime += timeIncrement;
+					frameCount++;
+				}
+			});
 		}
-		});
+	});
 }
 
-void AudioRenderer::fill_buffer(BYTE* buffer, unsigned int framesAvailable, double* globalTime) {
-	auto bufferLengthInBytes = framesAvailable * waveFormat->nBlockAlign;
-	double timeIncrement = 1.0 / waveFormat->nSamplesPerSec;
-	float* dataBuffer = reinterpret_cast<float*>(buffer);
+HRESULT AudioRenderer::write_to_buffer(std::function<void(UINT32, BYTE*, DWORD*)> fill_buffer)
+{
+	DWORD flags = 0;
+	BYTE* buffData = nullptr;
+	auto framesAvailable = get_available_frames_number();
 
-	for (size_t i = 0; i < bufferLengthInBytes / sizeof(float); i += waveFormat->nChannels)
+	auto result = renderClient->GetBuffer(framesAvailable, &buffData);
+	if (FAILED(result))
 	{
-		float sample = (float)userCallback(*globalTime);
-		for (size_t j = 0; j < waveFormat->nChannels; j++)
-		{
-			dataBuffer[i + j] = sample;
-		}
-
-		*globalTime += timeIncrement;
+		printf("RENDER-THREAD Failed to GetBuffer(): %x.\n", result);
+		return result;
 	}
+
+	fill_buffer(framesAvailable, buffData, &flags);
+
+	result = renderClient->ReleaseBuffer(framesAvailable, flags);
+	if (FAILED(result))
+	{
+		printf("RENDER-THREAD Failed to ReleaseBuffer(): %x.\n", result);
+		return result;
+	}
+}
+
+UINT32 AudioRenderer::get_available_frames_number()
+{
+	UINT32 numFramesPadding;
+	HRESULT result = audioClient->GetCurrentPadding(&numFramesPadding);
+	if (FAILED(result))
+	{
+		printf("RENDER-THREAD Failed to GetCurrentPadding(): %x.\n", result);
+		return 0;
+	}
+
+	return bufferSize - numFramesPadding;
 }
 
 void AudioRenderer::stop()
@@ -209,9 +207,22 @@ void AudioRenderer::stop()
 	auto hr = audioClient->Stop();
 	if (FAILED(hr))
 	{
-		printf("FAILED TO stop AUDIOCLIENT: %x.\n", hr);
+		printf("FAILED TO stop AudioRenderer: %x.\n", hr);
 		return;
 	}
 
 	renderThread.join();
+}
+
+void AudioRenderer::reset()
+{
+	if (running)
+		return;
+
+	auto hr = audioClient->Reset();
+	if (FAILED(hr))
+	{
+		printf("FAILED TO reset AudioRenderer: %x.\n", hr);
+		return;
+	}
 }

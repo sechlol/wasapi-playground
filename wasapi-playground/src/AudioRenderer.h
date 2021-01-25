@@ -7,18 +7,23 @@
 #include <MMDeviceAPI.h>
 #include <AudioClient.h>
 
+#include "common.h"
+
 class AudioRenderer
 {
 public:
 	AudioRenderer(IMMDevice* device);
 	~AudioRenderer();
 
-	std::optional<HRESULT> initialize(unsigned int userBufferSize);
-	void start(std::function<double(double)> renderCallback);
-	void fill_buffer(BYTE* buffer, unsigned int bufferLengthInBytes, double* globalTime);
+	std::optional<HRESULT> initialize(unsigned int bufferTimeSizeMs);
+	void start(std::function<double(FrameInfo)> renderCallback);
 	void stop();
+	void reset();
 
 private:
+	HRESULT write_to_buffer(std::function<void(UINT32, BYTE*, DWORD*)> producer);
+	UINT32 get_available_frames_number();
+	
 	IMMDevice* device;
 	IAudioClient* audioClient;
 	IAudioRenderClient* renderClient;
@@ -28,7 +33,7 @@ private:
 	REFERENCE_TIME latency;
 	UINT32 bufferSize;
 	
-	std::function<double(double)> userCallback;
+	std::function<double(FrameInfo)> userCallback;
 	std::atomic_bool running;
 	std::thread renderThread;
 };
