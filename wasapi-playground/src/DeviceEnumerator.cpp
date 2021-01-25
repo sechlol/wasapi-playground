@@ -1,6 +1,5 @@
 #include "DeviceEnumerator.h"
 
-#include <iostream>
 #include <optional>
 #include <vector>
 #include <string>
@@ -60,6 +59,26 @@ IMMDevice* DeviceEnumerator::get_device_by_id(std::string deviceId)
         printf("Unable to retrieve device ID %s: %x\n", deviceId, hr);
     }
 
+    return device;
+}
+
+IMMDevice* DeviceEnumerator::get_default_output()
+{
+    IMMDevice* device = nullptr;
+    auto result = this->deviceEnumerator->GetDefaultAudioEndpoint(EDataFlow::eRender,ERole::eMultimedia, &device);
+    if (FAILED(result)) {
+        printf("Unable to retrieve default output device ID %x\n", result);
+    }
+    return device;
+}
+
+IMMDevice* DeviceEnumerator::get_default_input()
+{
+    IMMDevice* device = nullptr;
+    auto result = this->deviceEnumerator->GetDefaultAudioEndpoint(EDataFlow::eCapture, ERole::eMultimedia, &device);
+    if (FAILED(result)) {
+        printf("Unable to retrieve default input device ID %x\n", result);
+    }
     return device;
 }
 

@@ -14,6 +14,8 @@ public:
 
 	std::optional<AudioDevices> enumerate_audio_devices();
 	IMMDevice* get_device_by_id(std::string deviceId);
+	IMMDevice* get_default_output();
+	IMMDevice* get_default_input();
 	
 private:
 	std::vector<AudioDeviceInfo> get_audio_devices_of_direction(EDataFlow direction);
