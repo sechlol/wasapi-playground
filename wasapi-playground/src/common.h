@@ -29,3 +29,8 @@ struct AudioDevices {
     std::vector<AudioDeviceInfo> input_devices;
     std::vector<AudioDeviceInfo> output_devices;
 };
+
+struct FrameInfo {
+    double time;
+    long ordinalNumber;
+};

@@ -30,33 +30,33 @@ Synthesizer::~Synthesizer()
     inputLoop.join();
 }
 
-double Synthesizer::sine_from_keystrokes(double time) const
+double Synthesizer::sine_from_keystrokes(FrameInfo frame) const
 {
-    return sin((frequencyOutput * M_PI * 2) * time);
+    return sin((frequencyOutput * M_PI * 2) * frame.time);
 }
 
-double Synthesizer::square_from_keystrokes(double time) const
+double Synthesizer::square_from_keystrokes(FrameInfo frame) const
 {
     if (frequencyOutput == 0)
         return 0;
 
-    return wavePeriodProgression(time, frequencyOutput) <= 0.5 ? 1 : -1;
+    return wavePeriodProgression(frame.time, frequencyOutput) <= 0.5 ? 1 : -1;
 }
 
-double Synthesizer::sawtooth_from_keystrokes(double time) const
+double Synthesizer::sawtooth_from_keystrokes(FrameInfo frame) const
 {
     if (frequencyOutput == 0)
         return 0;
 
-    return (wavePeriodProgression(time, frequencyOutput) * 2) - 1;
+    return (wavePeriodProgression(frame.time, frequencyOutput) * 2) - 1;
 }
 
-double Synthesizer::triangle_from_keystrokes(double time) const
+double Synthesizer::triangle_from_keystrokes(FrameInfo frame) const
 {
     if (frequencyOutput == 0)
         return 0;
 
-    auto progress = wavePeriodProgression(time, frequencyOutput);
+    auto progress = wavePeriodProgression(frame.time, frequencyOutput);
     if (progress <= 0.25)
     {
         return progress / 0.25;
