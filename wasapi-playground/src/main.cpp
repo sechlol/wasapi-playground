@@ -4,6 +4,7 @@
 #include <string>
 #include <future>
 #include <bitset>
+#include <deque>
 
 #include "Synthesizer.h"
 #include "DeviceEnumerator.h"
@@ -105,53 +106,111 @@ int capture_main(DeviceEnumerator& deviceEnumerator, std::vector<AudioDeviceInfo
         return -1;
     }
 
-    cout << "- Keep pressed SPACE to record audio. Release to stop recording" << endl;
-    cout << "- Press P to play recorded audio" << endl;
-    cout << "- Press ESC to quit" << endl;
+    cout << "- Keep pressed Q to record" << endl;
+    cout << "- Keep pressed W to play last recorded audio" << endl;
+    cout << "- Keep pressed SPACE to stream input to output" << endl;
+    cout << "- Press ESC to quit" << endl << endl;
 
     auto readCommands = std::thread([&capturer, &renderer]() {
         bool isRecording = false;
         bool isPlaying = false;
         bool stopRenderer = false;
+        bool isStreaming = false;
+
         AudioRecording lastRecording;
         std::future<AudioRecording> recordingFuture;
+        std::deque<float> ringBuffer;
 
         while (true) {
-            auto isSpaceDown = std::bitset<16>(GetAsyncKeyState(VK_SPACE)).test(15);
-            auto isPDown = std::bitset<16>(GetAsyncKeyState('P')).test(15);
+            auto isRecDown = std::bitset<16>(GetAsyncKeyState('Q')).test(15);
+            auto isPlayDown = std::bitset<16>(GetAsyncKeyState('W')).test(15);
+            auto isStreamingDown = std::bitset<16>(GetAsyncKeyState(VK_SPACE)).test(15);
             
-            if (isSpaceDown && !isRecording) {
+            //stop recording
+            if (isRecording && !isRecDown) {
+                isRecording = false;
+                capturer.stop();
+                lastRecording = recordingFuture.get();
+
+                cout << "Got " << lastRecording.data.size() << " samples (" << (float)lastRecording.durationMs / 1000.0 << "s)" << endl;
+            }
+
+            //stop playing
+            else if (isPlaying && !isPlayDown) {
+                cout << " Stop playing!" << endl;
+                isPlaying = false;
+                renderer.stop();
+            }
+
+            // stop streaming
+            else if (isStreaming && !isStreamingDown) {
+                cout << " Stop streaming!" << endl;
+                isStreaming = false;
+                capturer.stop();
+                renderer.stop();
+                ringBuffer.clear();
+            }
+
+            // start recording
+            else if (isRecDown && !isRecording && !isStreaming && !isPlaying) {
                 cout << "Now recording... ";
                 recordingFuture = capturer.start_recording();
                 isRecording = true;
             }
-            else if (!isSpaceDown && isRecording) {
-                isRecording = false;
-                capturer.stop();
-                lastRecording = recordingFuture.get();
-             
-                cout << "Got " << lastRecording.data.size() << " samples (" << (float)lastRecording.durationMs / 1000.0 << "s)" << endl;
-            }
-            else if (isPDown && !isPlaying) {
+           
+            //start playing
+            else if (isPlayDown && !isRecording && !isStreaming && !isPlaying) {
+
                 isPlaying = true;
-                renderer.start([&](FrameInfo info) {
-                    if (info.ordinalNumber >= lastRecording.data.size()) {
-                        stopRenderer = true;
-                        isPlaying = false;
-                        return 0.0;
+                if (lastRecording.durationMs != 0) {
+                    cout << "Now playing... ";
+                    renderer.start([&](FrameInfo info) {
+                        auto currentFrame = info.ordinalNumber % lastRecording.data.size();
+                        return (double)lastRecording.data[currentFrame];
+                        });
+                }
+                else {
+                    cout << "Nothing to play...";
+                }
+            }
+            
+            //start streaming
+            else if (isStreamingDown && !isRecording && !isStreaming && !isPlaying) {
+                cout << "Now Streaming... ";
+                isStreaming = true;
+
+                capturer.start_streaming([&ringBuffer](BYTE* inBuffer, UINT32 framesNum) {
+                    if (inBuffer == nullptr || framesNum == 0)
+                        return;
+
+                    auto floatBuffer = reinterpret_cast<float*>(inBuffer);
+                    for (size_t i = 0; i < framesNum; i++)
+                    {
+                        ringBuffer.push_back(floatBuffer[i]);
                     }
-                    
-                    return (double)lastRecording.data[info.ordinalNumber];
+                 });
+
+                renderer.start([&ringBuffer](FrameInfo frame) {
+                    if (!ringBuffer.empty()) {
+                        double frame;
+                        try {
+                            frame = ringBuffer.front();
+                        }
+                        catch (std::exception e) {
+                            cout << "madonna demente"<<endl;
+                            return 0.0;
+                        }
+                        ringBuffer.pop_front();
+                        return frame;
+                    }
+                   
+                    return 0.0;
                 });
             }
 
-            std::this_thread::sleep_for(std::chrono::milliseconds(20));
-            
-            if (stopRenderer)
-            {
-                renderer.stop();
-                stopRenderer = false;
-            }
+            if (isStreaming)
+                cout << ringBuffer.size()<< endl;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
 
             if (GetAsyncKeyState(VK_ESCAPE) != 0)
                 break;
@@ -159,7 +218,7 @@ int capture_main(DeviceEnumerator& deviceEnumerator, std::vector<AudioDeviceInfo
     });
 
     readCommands.join();
-
+    return 0;
 }
 
 int main()

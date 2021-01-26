@@ -13,6 +13,8 @@ AudioRenderer::AudioRenderer(IMMDevice* devicePointer) :
 
 AudioRenderer::~AudioRenderer()
 {
+	stop();
+
 	SafeRelease(&device);
 	SafeRelease(&audioClient);
 	SafeRelease(&renderClient);
@@ -112,7 +114,7 @@ std::optional<HRESULT> AudioRenderer::initialize(unsigned int bufferTimeSizeMs)
 	return std::nullopt;
 }
 
-void AudioRenderer::start(std::function<double(FrameInfo)> renderCallback)
+void AudioRenderer::start(const std::function<double(FrameInfo)> renderCallback)
 {
 	if (running || renderClient == nullptr)
 		return;
@@ -162,7 +164,7 @@ void AudioRenderer::start(std::function<double(FrameInfo)> renderCallback)
 	});
 }
 
-HRESULT AudioRenderer::write_to_buffer(std::function<void(UINT32, BYTE*, DWORD*)> fill_buffer)
+HRESULT AudioRenderer::write_to_buffer(const std::function<void(UINT32, BYTE*, DWORD*)> fill_buffer)
 {
 	DWORD flags = 0;
 	BYTE* buffData = nullptr;

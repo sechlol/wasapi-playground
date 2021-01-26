@@ -31,9 +31,9 @@ struct AudioDevices {
 };
 
 struct AudioRecording {
-    unsigned short channels;
-    unsigned int samplesPerSecond;
-    unsigned long durationMs;
+    unsigned short channels = 0;
+    unsigned int samplesPerSecond = 0;
+    unsigned long durationMs = 0;
 
     std::vector<float> data;
 };

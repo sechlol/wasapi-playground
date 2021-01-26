@@ -16,12 +16,12 @@ public:
 	~AudioRenderer();
 
 	std::optional<HRESULT> initialize(unsigned int bufferTimeSizeMs);
-	void start(std::function<double(FrameInfo)> renderCallback);
+	void start(const std::function<double(FrameInfo)> renderCallback);
 	void stop();
 	void reset();
 
 private:
-	HRESULT write_to_buffer(std::function<void(UINT32, BYTE*, DWORD*)> producer);
+	HRESULT write_to_buffer(const std::function<void(UINT32, BYTE*, DWORD*)> producer);
 	UINT32 get_available_frames_number();
 	
 	IMMDevice* device;
