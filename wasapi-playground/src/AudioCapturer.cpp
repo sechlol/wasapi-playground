@@ -5,12 +5,15 @@ AudioCapturer::AudioCapturer(IMMDevice* devicePointer) :
 	device(devicePointer),
 	audioClient(nullptr),
 	captureClient(nullptr),
-	waveFormat(nullptr)
+	waveFormat(nullptr),
+	streamingThread(std::nullopt)
 {
 }
 
 AudioCapturer::~AudioCapturer()
 {
+	stop();
+
 	SafeRelease(&device);
 	SafeRelease(&audioClient);
 	SafeRelease(&captureClient);
@@ -102,6 +105,61 @@ std::optional<HRESULT> AudioCapturer::initialize(unsigned int bufferTimeSizeMs)
 	return std::nullopt;
 }
 
+void AudioCapturer::capture_data(const std::function<void(BYTE*, UINT32, DWORD)> dataReader)
+{
+	UINT32 packetLength = 0;
+	BYTE* buffData = nullptr;
+	UINT32 framesAvailable = 0;
+	DWORD flags = 0;
+
+	auto result = captureClient->GetNextPacketSize(&packetLength);
+	if (FAILED(result))
+	{
+		printf("Failed to GetNextPacketSize(): %x.\n", result);
+		return;
+	}
+
+	while (packetLength != 0)
+	{
+		// Get the available data in the shared buffer.
+		result = captureClient->GetBuffer(
+			&buffData,
+			&framesAvailable,
+			&flags,
+			NULL,
+			NULL);
+
+		if (FAILED(result))
+		{
+			printf("Failed to GetBuffer(): %x.\n", result);
+			return;
+		}
+
+		// data is just silence
+		if (flags & AUDCLNT_BUFFERFLAGS_SILENT)
+		{
+			buffData = nullptr;
+		}
+
+		if (buffData != nullptr)
+			dataReader(buffData, framesAvailable, flags);
+
+		result = captureClient->ReleaseBuffer(framesAvailable);
+		if (FAILED(result))
+		{
+			printf("Failed to ReleaseBuffer(): %x.\n", result);
+			return;
+		}
+
+		result = captureClient->GetNextPacketSize(&packetLength);
+		if (FAILED(result))
+		{
+			printf("Failed to GetNextPacketSize(): %x.\n", result);
+			return;
+		}
+	}
+}
+
 std::future<AudioRecording> AudioCapturer::start_recording()
 {
 	if (running)
@@ -117,12 +175,6 @@ std::future<AudioRecording> AudioCapturer::start_recording()
 	running = true;
 	
 	return std::async(std::launch::async, [this]() {
-		BYTE* buffData = nullptr;
-		UINT32 packetLength;
-		UINT32 framesAvailable;
-		DWORD flags;
-		HRESULT result;
-		double time = 0;
 		auto interval = (long)latency / 2;
 
 		AudioRecording recordingData;
@@ -131,63 +183,13 @@ std::future<AudioRecording> AudioCapturer::start_recording()
 
 		while (running) {
 			Sleep(interval);
+			capture_data([&recordingData](BYTE* buffData, UINT32 framesAvailable, DWORD flags) {
+				float* bufferFloat = reinterpret_cast<float*>(buffData);
 
-			result = captureClient->GetNextPacketSize(&packetLength);
-			if (FAILED(result))
-			{
-				printf("Failed to GetNextPacketSize(): %x.\n", result);
-				running = false;
-				break;
-			}
-
-			while (packetLength != 0)
-			{
-				// Get the available data in the shared buffer.
-				result = captureClient->GetBuffer(
-					&buffData,
-					&framesAvailable,
-					&flags, 
-					NULL,
-					NULL);
-
-				if (FAILED(result))
-				{
-					printf("Failed to GetBuffer(): %x.\n", result);
-					running = false;
-					break;
-				}
-
-				// data is just silence
-				if (flags & AUDCLNT_BUFFERFLAGS_SILENT)
-				{
-					buffData = nullptr;
-				}
-
-				if (buffData != nullptr) {
-					auto bufferLengthInBytes = framesAvailable * waveFormat->nBlockAlign;
-					float* bufferFloat = reinterpret_cast<float*>(buffData);
-
-					// assume 32 bit format
-					for (size_t i = 0; i < framesAvailable; i++)
-						recordingData.data.push_back(bufferFloat[i]);
-				}
-				
-				result = captureClient->ReleaseBuffer(framesAvailable);
-				if (FAILED(result))
-				{
-					printf("Failed to ReleaseBuffer(): %x.\n", result);
-					running = false;
-					break;
-				}
-
-				result = captureClient->GetNextPacketSize(&packetLength);
-				if (FAILED(result))
-				{
-					printf("Failed to GetNextPacketSize(): %x.\n", result);
-					running = false;
-					break;
-				}
-			}
+				// assume 32 bit format
+				for (size_t i = 0; i < framesAvailable; i++)
+					recordingData.data.push_back(bufferFloat[i]);
+			});
 		}
 		
 		recordingData.durationMs = (recordingData.data.size() * 1000 / recordingData.samplesPerSecond);
@@ -195,8 +197,38 @@ std::future<AudioRecording> AudioCapturer::start_recording()
 	});
 }
 
-void AudioCapturer::start_streaming(std::function<void(BYTE*)> callback)
+void AudioCapturer::start_streaming(const std::function<void(BYTE*, UINT32)> callback)
 {
+	if (running)
+		return;
+
+	HRESULT hr = audioClient->Start();
+	if (FAILED(hr))
+	{
+		printf("FAILED TO START AUDIOCLIENT: %x.\n", hr);
+		return;
+	}
+
+	running = true;
+	userCallback = callback;
+
+	streamingThread = std::thread([this]() {
+		auto interval = (long)latency / 2;
+
+		AudioRecording recordingData;
+		recordingData.channels = waveFormat->nChannels;
+		recordingData.samplesPerSecond = waveFormat->nSamplesPerSec;
+
+		while (running) {
+			Sleep(interval);
+  			capture_data([this](BYTE* buffData, UINT32 framesAvailable, DWORD flags) {
+				userCallback(buffData, framesAvailable);
+			});
+		}
+
+		recordingData.durationMs = (recordingData.data.size() * 1000 / recordingData.samplesPerSecond);
+		return recordingData;
+	});
 }
 
 void AudioCapturer::stop()
@@ -211,4 +243,7 @@ void AudioCapturer::stop()
 	{
 		printf("FAILED TO stop AudioCapturer: %x.\n", result);
 	}
+
+	if (streamingThread.has_value())
+		streamingThread.value().join();
 }
