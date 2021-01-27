@@ -2,6 +2,8 @@
 
 #include <string>
 #include <vector>
+#include <optional>
+#include <AudioClient.h>
 
 template <class T> void SafeRelease(T** ppT)
 {
@@ -12,22 +14,17 @@ template <class T> void SafeRelease(T** ppT)
     }
 };
 
+struct AudioStreamInfo {
+    UINT32 bufferSizeInFrames;
+    REFERENCE_TIME latency;
+};
+
 std::wstring string_to_wstring(const std::string& s);
+std::optional<AudioStreamInfo> get_stream_info(IAudioClient* audioClient);
 
 enum class AudioDeviceDirection {
     Input,
     Output
-};
-
-struct AudioDeviceInfo {
-    std::string id;
-    std::string friendly_name;
-    AudioDeviceDirection direction;
-};
-
-struct AudioDevices {
-    std::vector<AudioDeviceInfo> input_devices;
-    std::vector<AudioDeviceInfo> output_devices;
 };
 
 struct AudioRecording {

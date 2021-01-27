@@ -4,7 +4,7 @@
 #include <vector>
 #include <string>
 
-#include <functiondiscoverykeys.h>
+#include <Audioclient.h>
 
 using std::string;
 using std::optional;
@@ -41,51 +41,62 @@ DeviceEnumerator::~DeviceEnumerator()
     SafeRelease(&this->deviceEnumerator);
 }
 
-optional<AudioDevices> DeviceEnumerator::enumerate_audio_devices() {
+std::vector<AudioDeviceSummary> DeviceEnumerator::get_output_devices_summary()
+{
+    return get_audio_devices_of_direction(EDataFlow::eRender);
+}
 
-    return AudioDevices{
+std::vector<AudioDeviceSummary> DeviceEnumerator::get_input_devices_summary()
+{
+    return get_audio_devices_of_direction(EDataFlow::eCapture);
+}
+
+AudioDeviceList DeviceEnumerator::get_all_devices_summary() {
+
+    return AudioDeviceList{
         this->get_audio_devices_of_direction(EDataFlow::eCapture),
         this->get_audio_devices_of_direction(EDataFlow::eRender)
     };
 }
 
-IMMDevice* DeviceEnumerator::get_device_by_id(std::string deviceId)
+std::unique_ptr<AudioDevice> DeviceEnumerator::get_device_by_id(const std::string& deviceId)
 {
     IMMDevice* device = nullptr;
     auto temp_id = string_to_wstring(deviceId);
-    LPCWSTR wid = (LPCWSTR)temp_id.c_str();
-    HRESULT hr = this->deviceEnumerator->GetDevice(wid, &device);
+    HRESULT hr = this->deviceEnumerator->GetDevice((LPCWSTR)temp_id.c_str(), &device);
     if (FAILED(hr)) {
-        printf("Unable to retrieve device ID %s: %x\n", deviceId, hr);
+        printf("Unable to retrieve device %s\n", deviceId);
+        return nullptr;
     }
-
-    return device;
+    return std::make_unique<AudioDevice>(device);
 }
 
-IMMDevice* DeviceEnumerator::get_default_output()
+std::unique_ptr<AudioDevice> DeviceEnumerator::get_default_output()
 {
     IMMDevice* device = nullptr;
     auto result = this->deviceEnumerator->GetDefaultAudioEndpoint(EDataFlow::eRender,ERole::eMultimedia, &device);
     if (FAILED(result)) {
         printf("Unable to retrieve default output device ID %x\n", result);
+        return nullptr;
     }
-    return device;
+    return std::make_unique<AudioDevice>(device);
 }
 
-IMMDevice* DeviceEnumerator::get_default_input()
+std::unique_ptr<AudioDevice> DeviceEnumerator::get_default_input()
 {
     IMMDevice* device = nullptr;
     auto result = this->deviceEnumerator->GetDefaultAudioEndpoint(EDataFlow::eCapture, ERole::eMultimedia, &device);
     if (FAILED(result)) {
         printf("Unable to retrieve default input device ID %x\n", result);
+        return nullptr;
     }
-    return device;
+    return std::make_unique<AudioDevice>(device);
 }
 
-vector<AudioDeviceInfo> DeviceEnumerator::get_audio_devices_of_direction(EDataFlow direction) {
+vector<AudioDeviceSummary> DeviceEnumerator::get_audio_devices_of_direction(EDataFlow direction) {
     IMMDeviceCollection* deviceCollection = NULL;
 
-    HRESULT hr = this->deviceEnumerator->EnumAudioEndpoints(direction, DEVICE_STATE_ACTIVE, &deviceCollection);
+    HRESULT hr = deviceEnumerator->EnumAudioEndpoints(direction, DEVICE_STATE_ACTIVE, &deviceCollection);
     if (FAILED(hr) && deviceCollection != nullptr)
     {
         printf("Unable to retrieve device collection: %x\n", hr);
@@ -99,10 +110,10 @@ vector<AudioDeviceInfo> DeviceEnumerator::get_audio_devices_of_direction(EDataFl
         return {};
     }
 
-    vector<AudioDeviceInfo> all_info;
+    vector<AudioDeviceSummary> all_info;
     for (size_t i = 0; i < device_count; i++)
     {
-        auto info = get_device_info(deviceCollection, i);
+        auto info = get_device_summary(deviceCollection, i);
         if (info.has_value()) {
             info.value().direction = direction == EDataFlow::eCapture ? AudioDeviceDirection::Input : AudioDeviceDirection::Output;
             all_info.push_back(info.value());
@@ -112,58 +123,18 @@ vector<AudioDeviceInfo> DeviceEnumerator::get_audio_devices_of_direction(EDataFl
     return all_info;
 }
 
-optional<AudioDeviceInfo> DeviceEnumerator::get_device_info(IMMDeviceCollection* device_collection, unsigned int device_index)
+optional<AudioDeviceSummary> DeviceEnumerator::get_device_summary(IMMDeviceCollection* deviceCollection, unsigned int deviceIndex)
 {
-    IMMDevice* device;
-    LPWSTR deviceId;
-    HRESULT hr;
+    AudioDeviceSummary info;
+    IMMDevice* devicePointer;
 
-    hr = device_collection->Item(device_index, &device);
+    auto hr = deviceCollection->Item(deviceIndex, &devicePointer);
     if (FAILED(hr))
     {
-        printf("Unable to get device %d: %x\n", device_index, hr);
+        printf("Unable to get device %d: %x\n", deviceIndex, hr);
         return std::nullopt;
     }
 
-    hr = device->GetId(&deviceId);
-    if (FAILED(hr))
-    {
-        printf("Unable to get device %d id: %x\n", device_index, hr);
-        return std::nullopt;
-    }
-
-    IPropertyStore* propertyStore;
-    hr = device->OpenPropertyStore(STGM_READ, &propertyStore);
-    SafeRelease(&device);
-    if (FAILED(hr))
-    {
-        printf("Unable to open device %d property store: %x\n", device_index, hr);
-        return std::nullopt;
-    }
-
-    PROPVARIANT friendlyName;
-    PropVariantInit(&friendlyName);
-    hr = propertyStore->GetValue(PKEY_Device_FriendlyName, &friendlyName);
-    SafeRelease(&propertyStore);
-
-    if (FAILED(hr))
-    {
-        printf("Unable to retrieve friendly name for device %d : %x\n", device_index, hr);
-        return std::nullopt;
-    }
-
-    std::wstring w_name(friendlyName.pwszVal);
-    std::wstring w_id(deviceId);
-
-    auto infos = AudioDeviceInfo{
-        string(w_id.begin(), w_id.end()),
-        friendlyName.vt != VT_LPWSTR ? "Unknown" : string(w_name.begin(), w_name.end())
-    };
-
-    PropVariantClear(&friendlyName);
-    CoTaskMemFree(deviceId);
-
-    return infos;
+    AudioDevice device(devicePointer);
+    return device.get_summary();
 }
-
-

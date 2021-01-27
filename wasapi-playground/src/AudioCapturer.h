@@ -1,5 +1,5 @@
 #pragma once
-
+#include <memory>
 #include <functional>
 #include <future>
 #include <optional>
@@ -8,10 +8,12 @@
 #include <AudioClient.h>
 
 #include "common.h"
+#include "AudioDevice.h"
 
 class AudioCapturer {
 public:
-	AudioCapturer(IMMDevice* devicePointer);
+	AudioCapturer(std::unique_ptr<AudioDevice> devicePointer);
+	AudioCapturer(const AudioCapturer& other) = delete;
 	~AudioCapturer();
 
 	std::optional<HRESULT> initialize(unsigned int bufferTimeSizeMs);
@@ -22,15 +24,13 @@ public:
 	
 private:
 	void capture_data(const std::function<void(BYTE*, UINT32, DWORD)> dataReader);
+	WAVEFORMATEX* get_working_format() const;
 
-	IMMDevice* device;
-	IAudioClient* audioClient;
+	std::unique_ptr<AudioDevice> device;
+	IAudioClient3* audioClient;
+	WAVEFORMATEX* deviceFormat;
 	IAudioCaptureClient* captureClient;
-	WAVEFORMATEX* waveFormat;
-
-	REFERENCE_TIME  devicePeriod;
-	REFERENCE_TIME latency;
-	UINT32 bufferSize;
+	std::optional<AudioStreamInfo> streamInfo;
 
 	std::function<void(BYTE*, UINT32)> userCallback;
 	std::optional<std::thread> streamingThread;

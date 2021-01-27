@@ -7,12 +7,15 @@
 #include <MMDeviceAPI.h>
 #include <AudioClient.h>
 
+#include "AudioDevice.h"
 #include "common.h"
 
 class AudioRenderer
 {
 public:
-	AudioRenderer(IMMDevice* device);
+	AudioRenderer(std::unique_ptr<AudioDevice> device);
+	AudioRenderer(const AudioRenderer& other) = delete;
+
 	~AudioRenderer();
 
 	std::optional<HRESULT> initialize(unsigned int bufferTimeSizeMs);
@@ -23,16 +26,14 @@ public:
 private:
 	HRESULT write_to_buffer(const std::function<void(UINT32, BYTE*, DWORD*)> producer);
 	UINT32 get_available_frames_number();
-	
-	IMMDevice* device;
-	IAudioClient* audioClient;
-	IAudioRenderClient* renderClient;
-	WAVEFORMATEX* waveFormat;
+	WAVEFORMATEX* get_working_format();
 
-	REFERENCE_TIME  devicePeriod;
-	REFERENCE_TIME latency;
-	UINT32 bufferSize;
-	
+	std::unique_ptr<AudioDevice> device;
+	IAudioClient3* audioClient;
+	WAVEFORMATEX* deviceFormat;
+	IAudioRenderClient* renderClient;
+	std::optional<AudioStreamInfo> streamInfo;
+
 	std::function<double(FrameInfo)> userCallback;
 	std::atomic_bool running;
 	std::thread renderThread;

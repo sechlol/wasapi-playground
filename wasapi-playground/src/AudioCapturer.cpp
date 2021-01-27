@@ -1,11 +1,12 @@
 #include "AudioCapturer.h"
 #include <future>
 
-AudioCapturer::AudioCapturer(IMMDevice* devicePointer) :
-	device(devicePointer),
-	audioClient(nullptr),
+AudioCapturer::AudioCapturer(std::unique_ptr<AudioDevice> devicePointer) :
+	device(std::move(devicePointer)),
+	audioClient(device->get_audio_client()),
+	deviceFormat(get_working_format()),
 	captureClient(nullptr),
-	waveFormat(nullptr),
+	streamInfo(std::nullopt),
 	streamingThread(std::nullopt)
 {
 }
@@ -14,93 +15,39 @@ AudioCapturer::~AudioCapturer()
 {
 	stop();
 
-	SafeRelease(&device);
 	SafeRelease(&audioClient);
 	SafeRelease(&captureClient);
-	CoTaskMemFree(waveFormat);
+	CoTaskMemFree(deviceFormat);
 }
 
 std::optional<HRESULT> AudioCapturer::initialize(unsigned int bufferTimeSizeMs)
 {
-	HRESULT hr = device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, NULL, reinterpret_cast<void**>(&audioClient));
-	if (FAILED(hr))
+	if (audioClient == nullptr)
 	{
-		printf("Unable to activate audio client: %x.\n", hr);
-		return hr;
+		return S_FALSE;
 	}
 
-	hr = audioClient->GetMixFormat(&waveFormat);
-	if (FAILED(hr))
-	{
-		printf("Unable to get mix format on audio client: %x.\n", hr);
-		return hr;
-	}
-
-	WAVEFORMATEX* workingFormat = nullptr;
-	hr = audioClient->IsFormatSupported(AUDCLNT_SHAREMODE_SHARED, waveFormat, &workingFormat);
-	if (FAILED(hr))
-	{
-		if (workingFormat != nullptr)
-		{
-			CoTaskMemFree(waveFormat);
-			waveFormat = workingFormat;
-			printf("Replace waveformat with another working format\n");
-		}
-		else {
-			printf("Mix Format not supported: %x.\n", hr);
-			return hr;
-		}
-	}
-
-	hr = audioClient->Initialize(
+	auto result = audioClient->Initialize(
 		AUDCLNT_SHAREMODE_SHARED,
 		AUDCLNT_STREAMFLAGS_NOPERSIST,
 		(REFERENCE_TIME)bufferTimeSizeMs * 10000,		// 1 unit --> 100 nanoseconds
 		0,												// only used for EXCLUSIVE mode
-		waveFormat,
+		deviceFormat,
 		NULL);
 
-	if (FAILED(hr))
+	if (FAILED(result))
 	{
-		printf("Unable to initialize audio client: %x.\n", hr);
-		return hr;
+		printf("Unable to initialize audio client: %x.\n", result);
+		return result;
 	}
 
-	hr = audioClient->GetBufferSize(&bufferSize);
-	if (FAILED(hr))
-	{
-		printf("Unable to get buffer size: %x.\n", hr);
-		return hr;
-	}
 
-	hr = audioClient->GetStreamLatency(&latency);
-	if (FAILED(hr))
+	result = audioClient->GetService(__uuidof(IAudioCaptureClient), reinterpret_cast<void**>(&captureClient));
+	if (FAILED(result))
 	{
-		printf("Unable to get latency: %x.\n", hr);
-		return hr;
+		printf("Unable to get new capture client: %x.\n", result);
+		return result;
 	}
-
-	hr = audioClient->GetService(__uuidof(IAudioCaptureClient), reinterpret_cast<void**>(&captureClient));
-	if (FAILED(hr))
-	{
-		printf("Unable to get new render client: %x.\n", hr);
-		return hr;
-	}
-
-	//*
-	printf("**** Details of CAPTURING device\n");
-	printf("\t- latency: %d\n", (long)latency);
-	printf("\t- bufferSize (frames): %d\n", bufferSize);
-	printf("\t- bufferSize (bytes): %d\n", bufferSize * waveFormat->nBlockAlign * waveFormat->nChannels);
-	printf("\t- wBitsPerSample: %d\n", waveFormat->wBitsPerSample);
-	printf("\t- nChannels: %d\n", waveFormat->nChannels);
-	printf("\t- nSamplesPerSec: %d\n", waveFormat->nSamplesPerSec);
-	printf("\t- nBlockAlign: %d\n", waveFormat->nBlockAlign);
-	printf("\t- nAvgBytesPerSec: %d\n", waveFormat->nAvgBytesPerSec);
-	printf("\t- cbSize: %d\n", waveFormat->cbSize);
-	printf("\t- wFormatTag: %d\n", waveFormat->wFormatTag);
-	printf("****\n");
-	/**/
 
 	return std::nullopt;
 }
@@ -172,14 +119,16 @@ std::future<AudioRecording> AudioCapturer::start_recording()
 		return std::future<AudioRecording>();
 	}
 
+	streamInfo = get_stream_info(audioClient);
 	running = true;
 	
 	return std::async(std::launch::async, [this]() {
+		auto latency = streamInfo.has_value() ? streamInfo.value().latency / 10000 : 0;
 		auto interval = (long)latency / 2;
 
 		AudioRecording recordingData;
-		recordingData.channels = waveFormat->nChannels;
-		recordingData.samplesPerSecond = waveFormat->nSamplesPerSec;
+		recordingData.channels = deviceFormat->nChannels;
+		recordingData.samplesPerSecond = deviceFormat->nSamplesPerSec;
 
 		while (running) {
 			Sleep(interval);
@@ -211,13 +160,15 @@ void AudioCapturer::start_streaming(const std::function<void(BYTE*, UINT32)> cal
 
 	running = true;
 	userCallback = callback;
+	streamInfo = get_stream_info(audioClient);
 
 	streamingThread = std::thread([this]() {
+		auto latency = streamInfo.has_value() ? streamInfo.value().latency / 10000 : 0;
 		auto interval = (long)latency / 2;
 
 		AudioRecording recordingData;
-		recordingData.channels = waveFormat->nChannels;
-		recordingData.samplesPerSecond = waveFormat->nSamplesPerSec;
+		recordingData.channels = deviceFormat->nChannels;
+		recordingData.samplesPerSecond = deviceFormat->nSamplesPerSec;
 
 		while (running) {
 			Sleep(interval);
@@ -246,4 +197,26 @@ void AudioCapturer::stop()
 
 	if (streamingThread.has_value())
 		streamingThread.value().join();
+}
+
+WAVEFORMATEX* AudioCapturer::get_working_format() const
+{
+	auto defaultFormat = device->get_device_format();
+	WAVEFORMATEX* outFormat = nullptr;
+
+	auto result = audioClient->IsFormatSupported(AUDCLNT_SHAREMODE_SHARED, defaultFormat, &outFormat);
+	if (FAILED(result))
+	{
+		CoTaskMemFree(defaultFormat);
+		if (outFormat == nullptr) {
+			printf("[AudioRenderer] Failed to call IsFormatSupported()\n");
+			return nullptr;
+		}
+		printf("Replace waveformat with another working format\n");
+	}
+	else {
+		CoTaskMemFree(outFormat);
+		outFormat = defaultFormat;
+	}
+	return outFormat;
 }
