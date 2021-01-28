@@ -59,6 +59,20 @@ AudioDeviceList DeviceEnumerator::get_all_devices_summary() {
     };
 }
 
+void DeviceEnumerator::register_notifications(IMMNotificationClient* notifClient)
+{
+    auto result = deviceEnumerator->RegisterEndpointNotificationCallback(notifClient);
+    if (FAILED(result))
+        printf("Unable to RegisterEndpointNotificationCallback()");
+}
+
+void DeviceEnumerator::unregister_notifications(IMMNotificationClient* notifClient)
+{
+    auto result = deviceEnumerator->UnregisterEndpointNotificationCallback(notifClient);
+    if (FAILED(result))
+        printf("Unable to RegisterEndpointNotificationCallback()");
+}
+
 std::unique_ptr<AudioDevice> DeviceEnumerator::get_device_by_id(const std::string& deviceId)
 {
     IMMDevice* device = nullptr;

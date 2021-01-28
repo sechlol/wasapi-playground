@@ -27,6 +27,9 @@ public:
 	std::vector<AudioDeviceSummary> get_output_devices_summary();
 	std::vector<AudioDeviceSummary> get_input_devices_summary();
 	AudioDeviceList get_all_devices_summary();
+
+	void register_notifications(IMMNotificationClient* notifClient);
+	void unregister_notifications(IMMNotificationClient* notifClient);
 	
 private:
 	std::vector<AudioDeviceSummary> get_audio_devices_of_direction(EDataFlow direction);
