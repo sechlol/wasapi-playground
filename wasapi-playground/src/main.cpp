@@ -28,8 +28,16 @@ int device_events() {
 
 int main()
 {
-	return device_events();
-	//return main_render();
-	//return main_stream_capture();
-	//return aaaa();
+	const int demo = 3;
+	switch (demo)
+	{
+	case 0:
+		return main_log();
+	case 1:
+		return device_events();
+	case 2:
+		return main_render();
+	case 3:
+		return main_stream_capture();
+	}
 }
