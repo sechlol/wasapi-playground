@@ -10,7 +10,7 @@
 struct AudioDeviceSummary {
     std::string id;
     std::string friendlyName;
-    AudioDeviceDirection direction;
+    EDataFlow direction;
 };
 
 struct AudioInfo1 {
@@ -28,7 +28,7 @@ struct AudioInfo2 {
 
 struct AudioInfo3 {
     std::optional<WAVEFORMATEX> currentSharedModeFormat;
-    UINT32 currentSharedModePeriod;
+    UINT32 currentSharedModePeriodInFrames;
     UINT32 defaultPeriodInFrames;
     UINT32 minPeriodInFrames;
     UINT32 maxPeriodInFrames;

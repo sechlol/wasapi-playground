@@ -48,6 +48,21 @@ namespace {
             SafeRelease(&propertyStore);
         }
 
+        IMMEndpoint* endpoint = nullptr;
+        hr = device->QueryInterface<IMMEndpoint>(&endpoint);
+        if (FAILED(hr))
+            printf("Unable to QueryInterface() to get audio endpoint : %x\n", hr);
+        else {
+            EDataFlow direction;
+            hr = endpoint->GetDataFlow(&direction);
+            if (FAILED(hr))
+                printf("Unable to GetDataFlow(): %x\n", hr);
+            else
+                summary.direction = direction;
+
+            SafeRelease(&endpoint);
+        }
+
         return summary;
     }
 
@@ -143,7 +158,7 @@ namespace {
             WAVEFORMATEX* format = nullptr;
             AudioInfo3 extendedInfo{};
 
-            result = audioClient->GetCurrentSharedModeEnginePeriod(&format, &extendedInfo.currentSharedModePeriod);
+            result = audioClient->GetCurrentSharedModeEnginePeriod(&format, &extendedInfo.currentSharedModePeriodInFrames);
             if (FAILED(result)) {
                 printf("Unable to get audio client 3 GetCurrentSharedModeEnginePeriod(): %x.\n", result);
             }

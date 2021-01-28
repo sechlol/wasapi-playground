@@ -129,7 +129,7 @@ vector<AudioDeviceSummary> DeviceEnumerator::get_audio_devices_of_direction(EDat
     {
         auto info = get_device_summary(deviceCollection, i);
         if (info.has_value()) {
-            info.value().direction = direction == EDataFlow::eCapture ? AudioDeviceDirection::Input : AudioDeviceDirection::Output;
+            info.value().direction = direction;
             all_info.push_back(info.value());
         }
     }

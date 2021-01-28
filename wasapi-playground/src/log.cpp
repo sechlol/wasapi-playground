@@ -94,10 +94,10 @@ void log_extended_info_2(const AudioInfo2& info, unsigned short level) {
 }
 
 void log_extended_info_3(const AudioInfo3& info, unsigned short level) {
-    cout << indent(level) << "Default period for each frame: " << info.defaultPeriodInFrames << "ms" << endl;
-    cout << indent(level) << "Fundamental frame period: " << info.fundamentalPeriodInFrames << "ms" << endl;
-    cout << indent(level) << "[min, max] periods for each frame: [" << info.minPeriodInFrames << "ms, " << info.maxPeriodInFrames << "ms]" << endl;
-    cout << indent(level) << "Current shared-mode period for each frame: " << info.currentSharedModePeriod << "ms" << endl;
+    cout << indent(level) << "Default period for each frame: " << info.defaultPeriodInFrames << endl;
+    cout << indent(level) << "Fundamental frame period: " << info.fundamentalPeriodInFrames << endl;
+    cout << indent(level) << "[min, max] periods for each frame: [" << info.minPeriodInFrames << ", " << info.maxPeriodInFrames << "]" << endl;
+    cout << indent(level) << "Current shared-mode period for each frame: " << info.currentSharedModePeriodInFrames << endl;
 }
 
 void log_device_details(const AudioDeviceDetails& deviceInfo)
@@ -105,7 +105,7 @@ void log_device_details(const AudioDeviceDetails& deviceInfo)
     auto summary = deviceInfo.summary.value();
     cout << "*** DEVICE " << summary.friendlyName << endl;
     cout << indent(0) << "id: " << summary.id << endl;
-    cout << indent(0) << "direction: " << (summary.direction == AudioDeviceDirection::Input ? "input" : "output") << endl;
+    cout << indent(0) << "direction: " << (summary.direction == EDataFlow::eCapture ? "input" : "output") << endl;
 
     if (deviceInfo.extendedInfo1.has_value()) {
         cout << indent(0) << "PROPERTIES FROM AudioDevice 1" << endl;
