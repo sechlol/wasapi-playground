@@ -20,7 +20,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\AudioCapturer.cpp" />
-    <ClCompile Include="src\AudioDeviceProvider.cpp" />
+    <ClCompile Include="src\DeviceNotificationProvider.cpp" />
     <ClCompile Include="src\AudioRenderer.cpp" />
     <ClCompile Include="src\common.cpp" />
     <ClCompile Include="src\AudioDevice.cpp" />
@@ -31,7 +31,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\AudioCapturer.h" />
-    <ClInclude Include="src\AudioDeviceProvider.h" />
+    <ClInclude Include="src\DeviceNotificationProvider.h" />
     <ClInclude Include="src\AudioRenderer.h" />
     <ClInclude Include="src\common.h" />
     <ClInclude Include="src\AudioDevice.h" />

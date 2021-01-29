@@ -4,31 +4,31 @@
 #include "main_render.hpp"
 #include "main_log.hpp"
 
-#include "AudioDeviceProvider.h"
-#include "DeviceEnumerator.h"
+#include "DeviceNotificationProvider.h"
 
 using std::cout;
 using std::endl;
 
 int device_events() {
-	CMMNotificationClient cli;
-	DeviceEnumerator deviceEnum;
+	DeviceNotificationProvider notifications;
 
 	cout << " - Will log events when devices are added or removed" << endl;
 	cout << " - Press ESC to exit" << endl;
 
-	deviceEnum.register_notifications(&cli);
+	notifications.subscribe_to_global_events([](std::string id, DeviceEvent evt) {
+		if (evt != DeviceEvent::PropertyChanged)
+			cout << "Device event: " << (int)evt << " id: " << id<<endl;
+	});
 
 	while (GetAsyncKeyState(VK_ESCAPE) == 0)
 		Sleep(10);
 
-	deviceEnum.unregister_notifications(&cli);
 	return 0;
 }
 
 int main()
 {
-	const int demo = 0;
+	const int demo = 1;
 	switch (demo)
 	{
 	case 0:

@@ -20,6 +20,7 @@ struct AudioStreamInfo {
 };
 
 std::wstring string_to_wstring(const std::string& s);
+std::string LPCWSTR_to_string(const LPCWSTR& s);
 std::optional<AudioStreamInfo> get_stream_info(IAudioClient* audioClient);
 
 enum class AudioDeviceDirection {

@@ -39,7 +39,7 @@
     <ClCompile Include="src\AudioDevice.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\AudioDeviceProvider.cpp">
+    <ClCompile Include="src\DeviceNotificationProvider.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -65,7 +65,7 @@
     <ClInclude Include="src\AudioDevice.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\AudioDeviceProvider.h">
+    <ClInclude Include="src\DeviceNotificationProvider.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

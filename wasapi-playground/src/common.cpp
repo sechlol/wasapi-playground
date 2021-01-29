@@ -1,5 +1,6 @@
 #include "common.h"
 #include <string>
+#include <cwctype>
 
 std::wstring string_to_wstring(const std::string& s)
 {
@@ -8,6 +9,16 @@ std::wstring string_to_wstring(const std::string& s)
         temp += c;
     }
     return temp;
+}
+
+std::string LPCWSTR_to_string(const LPCWSTR& s)
+{
+    std::string out;
+    for (size_t i = 0; i < wcslen(s); i++)
+    {
+        out += s[i];
+    }
+    return out;
 }
 
 std::optional<AudioStreamInfo> get_stream_info(IAudioClient* audioClient)
