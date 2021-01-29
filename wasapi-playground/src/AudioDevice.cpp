@@ -63,6 +63,24 @@ namespace {
             SafeRelease(&endpoint);
         }
 
+        IDeviceTopology* topology = nullptr;
+        IConnector* connector = nullptr;
+        hr = device->Activate(__uuidof(IDeviceTopology), CLSCTX_ALL, NULL, (void**)&topology);
+        if (FAILED(hr))
+            printf("Unable to get IDeviceTopology: %x\n", hr);
+        else {
+            // The device topology for an endpoint device always contains just one connector (connector number 0).
+            
+            hr = topology->GetConnector(0, &connector);
+            if (FAILED(hr))
+                printf("Unable to get IConnector: %x\n", hr);
+            else {
+                connector->GetType(&summary.type);
+                SafeRelease(&connector);
+            }
+            SafeRelease(&topology);
+        }
+
         return summary;
     }
 
@@ -239,30 +257,3 @@ IAudioClient3* AudioDevice::get_audio_client() const
 
     return client;
 }
-/*
-void Initialize() {
-    result = audioClient->Initialize(
-        AUDCLNT_SHAREMODE_SHARED,
-        AUDCLNT_STREAMFLAGS_NOPERSIST,
-        PERIOD_TIME,
-        0,
-        waveFormat,
-        NULL);
-
-    if (FAILED(result)) {
-        printf("Unable to initialize audio client: %x.\n", result);
-    }
-    else {
-
-        AudioInfo1 extendedInfo;
-        result = audioClient->GetBufferSize(&extendedInfo.bufferSizeInFrames);
-        if (FAILED(result)) {
-            printf("Unable to get audio client GetBufferSize(): %x.\n", result);
-        }
-
-        result = audioClient->GetStreamLatency(&extendedInfo.latency);
-        if (FAILED(result)) {
-            printf("Unable to get audio client GetStreamLatency(): %x.\n", result);
-        }
-    }
-}*/

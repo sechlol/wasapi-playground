@@ -100,12 +100,30 @@ void log_extended_info_3(const AudioInfo3& info, unsigned short level) {
     cout << indent(level) << "Current shared-mode period for each frame: " << info.currentSharedModePeriodInFrames << endl;
 }
 
+std::string device_type_to_str(ConnectorType type) {
+    switch (type) {
+        case Physical_Internal:
+            return "Physical_Internal";
+        case Physical_External:
+            return "Physical_External";
+        case Software_IO:
+            return "Software_IO";
+        case Software_Fixed:
+            return "Software_Fixed";
+        case Network:
+            return "Network";
+        case Unknown_Connector:
+        default:
+            return "Unknown_Connector";
+    }
+}
 void log_device_details(const AudioDeviceDetails& deviceInfo)
 {
     auto summary = deviceInfo.summary.value();
     cout << "*** DEVICE " << summary.friendlyName << endl;
     cout << indent(0) << "id: " << summary.id << endl;
     cout << indent(0) << "direction: " << (summary.direction == EDataFlow::eCapture ? "input" : "output") << endl;
+    cout << indent(0) << "type: " << device_type_to_str(summary.type) << endl;
 
     if (deviceInfo.extendedInfo1.has_value()) {
         cout << indent(0) << "PROPERTIES FROM AudioDevice 1" << endl;

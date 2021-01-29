@@ -4,6 +4,7 @@
 
 #include <AudioClient.h>
 #include <MMDeviceAPI.h>
+#include <DeviceTopology.h>
 
 #include "common.h"
 
@@ -11,6 +12,7 @@ struct AudioDeviceSummary {
     std::string id;
     std::string friendlyName;
     EDataFlow direction;
+    ConnectorType type;
 };
 
 struct AudioInfo1 {
