@@ -1,5 +1,3 @@
-#include <cstdlib>
-
 #include "DeviceNotificationProvider.h"
 #include "common.h"
 
@@ -31,7 +29,7 @@ DeviceNotificationProvider::~DeviceNotificationProvider()
 
 SubscriptionId DeviceNotificationProvider::subscribe_to_global_events(GlobalDeviceEventCallback callback)
 {
-    SubscriptionId newId = rand();
+    auto newId = new_subscription_id();
     globalSubscriptionMap.insert({ newId, callback });
     return newId;
 }
@@ -45,7 +43,7 @@ void DeviceNotificationProvider::unsubscribe(SubscriptionId id)
 
 SubscriptionId DeviceNotificationProvider::subscribe_to_device_events(std::string deviceId, DeviceEventCallback callback)
 {
-    SubscriptionId newId = rand();
+    auto newId = new_subscription_id();
 
     // Inserts subscription ID into subscription map
     auto callbackList = deviceEventsMap.find(deviceId);

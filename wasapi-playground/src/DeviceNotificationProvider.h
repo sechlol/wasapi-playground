@@ -16,7 +16,6 @@ enum class DeviceEvent {
     Unknown = 6
 };
 
-typedef unsigned int SubscriptionId;
 typedef std::function<void(DeviceEvent deviceEvent)> DeviceEventCallback;
 typedef std::function<void(std::string deviceId, DeviceEvent deviceEvent)> GlobalDeviceEventCallback;
 

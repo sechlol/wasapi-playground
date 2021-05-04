@@ -42,6 +42,9 @@
     <ClCompile Include="src\DeviceNotificationProvider.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\VolumeNotificationProvider.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\AudioRenderer.h">
@@ -66,6 +69,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\DeviceNotificationProvider.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\VolumeNotificationProvider.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

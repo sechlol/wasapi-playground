@@ -28,6 +28,7 @@
     <ClCompile Include="src\log.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\Synthesizer.cpp" />
+    <ClCompile Include="src\VolumeNotificationProvider.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\AudioCapturer.h" />
@@ -38,6 +39,7 @@
     <ClInclude Include="src\DeviceEnumerator.h" />
     <ClInclude Include="src\log.h" />
     <ClInclude Include="src\Synthesizer.h" />
+    <ClInclude Include="src\VolumeNotificationProvider.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>

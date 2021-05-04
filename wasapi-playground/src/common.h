@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdlib>
 #include <string>
 #include <vector>
 #include <optional>
@@ -40,3 +41,14 @@ struct FrameInfo {
     double time;
     long ordinalNumber;
 };
+
+struct VolumeInfo {
+    bool muted;
+    float masterVolume;
+};
+
+typedef unsigned int SubscriptionId;
+
+inline SubscriptionId new_subscription_id() {
+    return rand();
+}

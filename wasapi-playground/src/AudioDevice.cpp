@@ -199,13 +199,40 @@ namespace {
             SafeRelease(&audioClient);
         }
     }
+
+    IAudioEndpointVolume* get_audio_endpoint(IMMDevice* devicePointer) {
+        IAudioEndpointVolume* volumeEndpoint = nullptr;
+        auto result = devicePointer->Activate(
+            __uuidof(IAudioEndpointVolume),
+            CLSCTX_ALL,
+            NULL,
+            reinterpret_cast<void**>(&volumeEndpoint));
+
+        if (FAILED(result))
+        {
+            printf("Unable to activate IAudioEndpointVolume: %x.\n", result);
+        }
+        return volumeEndpoint;
+    }
 }
 
-AudioDevice::AudioDevice(IMMDevice* devicePointer) : device(devicePointer){}
+AudioDevice::AudioDevice(IMMDevice* devicePointer) 
+    : device(devicePointer)
+    , audioEndpoint(get_audio_endpoint(devicePointer)) 
+{
+    if (audioEndpoint != nullptr) {
+        audioEndpoint->RegisterControlChangeNotify(&volumeNotifications);
+    }
+}
 
 AudioDevice::~AudioDevice()
 {
+    if (audioEndpoint != nullptr) {
+        audioEndpoint->UnregisterControlChangeNotify(&volumeNotifications);
+    }
+
     SafeRelease(&device);
+    SafeRelease(&audioEndpoint);
 }
 
 AudioDeviceSummary AudioDevice::get_summary() const
@@ -226,10 +253,8 @@ AudioDeviceDetails AudioDevice::get_info() const
 
 VolumeInfo AudioDevice::get_volume() const
 {
-    
     BOOL muted = false;
     float masterVolume = 0;
-    UINT nChannels = 0;
     IAudioEndpointVolume* volumeEndpoint = nullptr;
     auto result = device->Activate(
         __uuidof(IAudioEndpointVolume),
@@ -243,7 +268,6 @@ VolumeInfo AudioDevice::get_volume() const
     }
     else 
     {
-        
         result = volumeEndpoint->GetMute(&muted);
         if (FAILED(result)) {
             printf("Unable to GetMute: %x.\n", result);
@@ -252,18 +276,20 @@ VolumeInfo AudioDevice::get_volume() const
         if (FAILED(result)) {
             printf("Unable to GetMasterVolumeLevelScalar: %x.\n", result);
         }
-        result = volumeEndpoint->GetChannelCount(&nChannels);
-        if (FAILED(result)) {
-            printf("Unable to GetChannelCount: %x.\n", result);
-        }
-        result = volumeEndpoint->GetChannelCount(&nChannels);
-        if (FAILED(result)) {
-            printf("Unable to GetChannelCount: %x.\n", result);
-        }
         SafeRelease(&volumeEndpoint);
     }
 
     return { (bool)muted, masterVolume };
+}
+
+SubscriptionId AudioDevice::subscribe_to_volume_changes(VolumeChangeCallback callback)
+{
+    return volumeNotifications.subscribe_volume_changes(callback);
+}
+
+void AudioDevice::unsubscribe_volume_changes(SubscriptionId id)
+{
+    volumeNotifications.unsubscribe(id);
 }
 
 WAVEFORMATEX* AudioDevice::get_device_format() const
