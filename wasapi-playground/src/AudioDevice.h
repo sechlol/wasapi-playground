@@ -3,6 +3,7 @@
 #include <optional>
 
 #include <AudioClient.h>
+#include <endpointvolume.h>
 #include <MMDeviceAPI.h>
 #include <DeviceTopology.h>
 
@@ -37,11 +38,17 @@ struct AudioInfo3 {
     UINT32 fundamentalPeriodInFrames;
 };
 
+struct VolumeInfo {
+    bool muted;
+    float masterVolume;
+};
+
 struct AudioDeviceDetails {
     std::optional<AudioDeviceSummary> summary = std::nullopt;
     std::optional<AudioInfo1> extendedInfo1 = std::nullopt;
     std::optional<AudioInfo2> extendedInfo2 = std::nullopt;
     std::optional<AudioInfo3> extendedInfo3 = std::nullopt;
+    VolumeInfo volume;
 };
 
 class AudioDevice
@@ -53,6 +60,7 @@ public:
 
 	AudioDeviceSummary get_summary() const;
 	AudioDeviceDetails get_info() const;
+    VolumeInfo get_volume() const;
 
     IAudioClient3* get_audio_client() const;
     WAVEFORMATEX* get_device_format() const;

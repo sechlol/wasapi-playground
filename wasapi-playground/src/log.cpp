@@ -124,6 +124,7 @@ void log_device_details(const AudioDeviceDetails& deviceInfo)
     cout << indent(0) << "id: " << summary.id << endl;
     cout << indent(0) << "direction: " << (summary.direction == EDataFlow::eCapture ? "input" : "output") << endl;
     cout << indent(0) << "type: " << device_type_to_str(summary.type) << endl;
+    cout << indent(0) << "master volume: " << deviceInfo.volume.masterVolume << (deviceInfo.volume.muted ? " (muted)" : "") << endl;
 
     if (deviceInfo.extendedInfo1.has_value()) {
         cout << indent(0) << "PROPERTIES FROM AudioDevice 1" << endl;

@@ -220,7 +220,50 @@ AudioDeviceDetails AudioDevice::get_info() const
     get_info_from_audio_client_1(device, details);
     get_info_from_audio_client_2(device, details);
     get_info_from_audio_client_3(device, details);
+    details.volume = get_volume();
     return details;
+}
+
+VolumeInfo AudioDevice::get_volume() const
+{
+    
+    BOOL muted = false;
+    float masterVolume = 0;
+    UINT nChannels = 0;
+    IAudioEndpointVolume* volumeEndpoint = nullptr;
+    auto result = device->Activate(
+        __uuidof(IAudioEndpointVolume),
+        CLSCTX_ALL,
+        NULL,
+        reinterpret_cast<void**>(&volumeEndpoint));
+
+    if (FAILED(result))
+    {
+        printf("Unable to activate IAudioEndpointVolume: %x.\n", result);
+    }
+    else 
+    {
+        
+        result = volumeEndpoint->GetMute(&muted);
+        if (FAILED(result)) {
+            printf("Unable to GetMute: %x.\n", result);
+        }
+        result = volumeEndpoint->GetMasterVolumeLevelScalar(&masterVolume);
+        if (FAILED(result)) {
+            printf("Unable to GetMasterVolumeLevelScalar: %x.\n", result);
+        }
+        result = volumeEndpoint->GetChannelCount(&nChannels);
+        if (FAILED(result)) {
+            printf("Unable to GetChannelCount: %x.\n", result);
+        }
+        result = volumeEndpoint->GetChannelCount(&nChannels);
+        if (FAILED(result)) {
+            printf("Unable to GetChannelCount: %x.\n", result);
+        }
+        SafeRelease(&volumeEndpoint);
+    }
+
+    return { (bool)muted, masterVolume };
 }
 
 WAVEFORMATEX* AudioDevice::get_device_format() const

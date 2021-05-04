@@ -28,7 +28,7 @@ int device_events() {
 
 int main()
 {
-	const int demo = 1;
+	const int demo = 0;
 	switch (demo)
 	{
 	case 0:
